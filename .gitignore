@@ -1,0 +1,44 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.pyo
+
+# === Virtual Environment ===
+venv/
+env/
+.venv/
+ENV/
+
+# === Environment Variables (SECRET!) ===
+.env
+
+# === Database ===
+*.db
+*.sqlite
+*.sqlite3
+
+# === Logs ===
+*.log
+logs/
+
+# === IDE / Editor ===
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# === OS ===
+desktop.ini
+ehthumbs.db
+
+# === ZIP archives ===
+*.zip
