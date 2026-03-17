@@ -177,6 +177,7 @@ async def _dump_to_dict() -> dict:
                 "id":          p.id,
                 "name":        p.name,
                 "price":       p.price,
+                "vip_price":   p.vip_price,
                 "description": p.description,
             }
             for p in all_products
@@ -212,11 +213,13 @@ async def _load_from_dict(data: dict) -> None:
                     id=int(pid),
                     name=p["name"],
                     price=p["price"],
+                    vip_price=p.get("vip_price"),
                     description=p.get("description"),
                 ))
             else:
                 existing.name        = p["name"]
                 existing.price       = p["price"]
+                existing.vip_price   = p.get("vip_price")
                 existing.description = p.get("description")
 
         # --- Users ---

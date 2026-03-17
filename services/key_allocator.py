@@ -4,25 +4,10 @@ from sqlalchemy import select
 from database.models import User, Product, Key, Purchase
 from database.github_sync import save_database
 
-# VIP Fixed Prices Customization
-VIP_PRICES = {
-    "1 КҮН": 200,
-    "7 КҮН": 2000,
-    "15 КҮН": 2500,
-    "30 КҮН": 3500
-}
-
-def get_vip_price(product_name: str, original_price: float) -> float:
-    name_upper = product_name.upper()
-    for key, price in VIP_PRICES.items():
-        if key in name_upper:
-            return float(price)
-    return original_price
-
 def get_effective_price(product: Product, user: User) -> float:
     """Return VIP-discounted price if applicable."""
-    if user.is_vip:
-        return get_vip_price(product.name, product.price)
+    if user.is_vip and product.vip_price is not None:
+        return product.vip_price
     return product.price
 
 

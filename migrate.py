@@ -32,6 +32,13 @@ else:
             cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}")
             added.append(col_name)
 
+    # products table checks
+    cursor.execute("PRAGMA table_info(products)")
+    existing_product_cols = {row[1] for row in cursor.fetchall()}
+    if "vip_price" not in existing_product_cols:
+        cursor.execute("ALTER TABLE products ADD COLUMN vip_price REAL")
+        added.append("products.vip_price")
+
     # vip_codes table
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='vip_codes'")
     if not cursor.fetchone():

@@ -30,6 +30,7 @@ class Product(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     price = Column(Float, nullable=False)
+    vip_price = Column(Float, nullable=True)  # Dynamic VIP pricing
     description = Column(String, nullable=True)
     
     purchases = relationship("Purchase", back_populates="product")

@@ -40,12 +40,10 @@ def main_menu_keyboard(lang: str = "kk") -> ReplyKeyboardMarkup:
 
 def products_keyboard(products, is_vip: bool = False, lang: str = "kk") -> InlineKeyboardMarkup:
     """One inline Buy button per product. Shows VIP price if applicable."""
-    from services.key_allocator import get_vip_price
     rows = []
     for p in products:
-        if is_vip:
-            vip_price = get_vip_price(p.name, p.price)
-            label = f"👑 {p.name} | 💸 {vip_price:,.0f} ₸ (VIP)"
+        if is_vip and getattr(p, 'vip_price', None) is not None:
+            label = f"👑 {p.name} | 💸 {p.vip_price:,.0f} ₸ (VIP)"
         else:
             label = f"🛒 {p.name} | 💰 {p.price:,.0f} ₸"
         rows.append([

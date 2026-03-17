@@ -1,3 +1,4 @@
+import asyncio
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
@@ -7,6 +8,7 @@ from sqlalchemy import select, delete
 
 from database.models import User, Product
 from handlers.admin.panel import is_admin
+from database.github_sync import save_database
 
 router = Router()
 
@@ -16,9 +18,11 @@ router = Router()
 class AddProductFSM(StatesGroup):
     waiting_name  = State()
     waiting_price = State()
+    waiting_vip_price = State()
 
 class EditPriceFSM(StatesGroup):
     waiting_product = State()   # callback triggers this
+    waiting_price_type = State()
     waiting_price   = State()
 
 class DeleteProductFSM(StatesGroup):
@@ -94,8 +98,32 @@ async def add_product_price(message: Message, db_user: User, db_session: AsyncSe
         await message.answer("❌ Дұрыс сан енгізіңіз, мысалы: <b>366</b>", parse_mode="HTML")
         return
 
+    await state.update_data(price=price)
+    await state.set_state(AddProductFSM.waiting_vip_price)
+    await message.answer(
+        f"✅ Қалыпты баға: <b>{price:,.0f} ₸</b>\n\n"
+        "Енді VIP жазылушыларына арналған бағаны енгізіңіз\n"
+        "<i>(Егер VIP жеңілдік болмаса 0 деп жазыңыз)</i>:",
+        parse_mode="HTML"
+    )
+
+@router.message(AddProductFSM.waiting_vip_price)
+async def add_product_vip_price(message: Message, db_user: User, db_session: AsyncSession, state: FSMContext):
+    if not is_admin(db_user.tg_id):
+        return
+
+    try:
+        vip_price = float(message.text.strip().replace(",", "."))
+    except ValueError:
+        await message.answer("❌ Дұрыс сан енгізіңіз, мысалы: <b>200</b>", parse_mode="HTML")
+        return
+
+    if vip_price <= 0:
+        vip_price = None
+
     data = await state.get_data()
     name = data["name"]
+    price = data["price"]
 
     # Check duplicate
     existing = await db_session.scalar(select(Product).where(Product.name == name))
@@ -108,15 +136,20 @@ async def add_product_price(message: Message, db_user: User, db_session: AsyncSe
         )
         return
 
-    product = Product(name=name, price=price, description=f"{name} лицензиясы")
+    product = Product(name=name, price=price, vip_price=vip_price, description=f"{name} лицензиясы")
     db_session.add(product)
     await db_session.commit()
     await state.clear()
 
+    # Save to Github Sync immediately
+    asyncio.create_task(save_database())
+
+    vp_str = f"{vip_price:,.0f} ₸" if vip_price else "Жоқ"
     await message.answer(
         f"✅ <b>Тауар сәтті қосылды!</b>\n\n"
         f"📦 Атауы: <b>{name}</b>\n"
-        f"💰 Бағасы: <b>{price:,.0f} ₸</b>",
+        f"💰 Бағасы: <b>{price:,.0f} ₸</b>\n"
+        f"💎 VIP баға: <b>{vp_str}</b>",
         parse_mode="HTML"
     )
 
@@ -157,12 +190,37 @@ async def edit_price_chosen(callback: CallbackQuery, db_user: User, db_session: 
         await callback.answer("Тауар табылмады.", show_alert=True)
         return
 
-    await state.update_data(product_id=product_id, product_name=product.name, old_price=product.price)
-    await state.set_state(EditPriceFSM.waiting_price)
+    await state.update_data(product_id=product_id, product_name=product.name)
+    await state.set_state(EditPriceFSM.waiting_price_type)
+    
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💰 Қалыпты баға", callback_data="price_type:normal"),
+         InlineKeyboardButton(text="💎 VIP баға", callback_data="price_type:vip")],
+        [InlineKeyboardButton(text="❌ Болдырмау", callback_data="product_cancel")]
+    ])
+    
+    vp_str = f"{product.vip_price:,.0f} ₸" if product.vip_price else "Жоқ"
     await callback.message.edit_text(
-        f"✏️ <b>{product.name}</b>\n"
-        f"Қазіргі баға: <b>{product.price:,.0f} ₸</b>\n\n"
-        "Жаңа бағаны теңгемен енгізіңіз:",
+        f"✏️ <b>{product.name}</b>\n\n"
+        f"Қалыпты баға: <b>{product.price:,.0f} ₸</b>\n"
+        f"VIP баға: <b>{vp_str}</b>\n\n"
+        "Қай бағаны өзгерткіңіз келеді?",
+        reply_markup=markup,
+        parse_mode="HTML"
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("price_type:"), EditPriceFSM.waiting_price_type)
+async def edit_price_type_chosen(callback: CallbackQuery, state: FSMContext):
+    p_type = callback.data.split(":")[1]
+    await state.update_data(price_type=p_type)
+    await state.set_state(EditPriceFSM.waiting_price)
+    
+    type_str = "ҚАЛЫПТЫ" if p_type == "normal" else "VIP"
+    hint_str = "2555" if p_type == "normal" else "200 (VIP жою үшін 0 жазыңыз)"
+    
+    await callback.message.edit_text(
+        f"✏️ Жаңа <b>{type_str}</b> бағаны теңгемен енгізіңіз:\n<i>(Мысалы: {hint_str})</i>", 
         parse_mode="HTML"
     )
     await callback.answer()
@@ -176,22 +234,29 @@ async def edit_price_confirm(message: Message, db_user: User, db_session: AsyncS
     try:
         new_price = float(message.text.strip().replace(",", "."))
     except ValueError:
-        await message.answer("❌ Дұрыс сан енгізіңіз, мысалы: <b>2555</b>", parse_mode="HTML")
+        await message.answer("❌ Дұрыс сан енгізіңіз.", parse_mode="HTML")
         return
 
     data = await state.get_data()
     product = await db_session.get(Product, data["product_id"])
-    old_price = data["old_price"]
+    p_type = data["price_type"]
 
-    product.price = new_price
+    if p_type == "normal":
+        product.price = new_price
+        msg = f"Қалыпты баға <b>{new_price:,.0f} ₸</b> болып өзгертілді"
+    else:
+        product.vip_price = new_price if new_price > 0 else None
+        msg = f"VIP баға <b>{new_price:,.0f} ₸</b> болып өзгертілді" if new_price > 0 else "VIP баға жойылды"
+
     await db_session.commit()
     await state.clear()
+    
+    asyncio.create_task(save_database())
 
     await message.answer(
-        f"✅ <b>Баға сәтті өзгертілді!</b>\n\n"
+        f"✅ <b>Сәтті сақталды!</b>\n\n"
         f"📦 Тауар: <b>{product.name}</b>\n"
-        f"💰 Бұрынғы баға: <s>{old_price:,.0f} ₸</s>\n"
-        f"💰 Жаңа баға:    <b>{new_price:,.0f} ₸</b>",
+        f"ℹ️ {msg}",
         parse_mode="HTML"
     )
 
@@ -297,6 +362,8 @@ async def delete_product_confirmed(callback: CallbackQuery, db_user: User, db_se
     await db_session.delete(product)
     await db_session.commit()
     await state.clear()
+
+    asyncio.create_task(save_database())
 
     await callback.message.edit_text(
         f"✅ <b>Тауар сәтті жойылды!</b>\n\n"
