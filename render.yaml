@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: pay-app-bot
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python main.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.4
+      - key: BOT_TOKEN
+        sync: false
+      - key: USE_WEBHOOK
+        value: "True"
+      - key: WEBHOOK_URL
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
