@@ -10,7 +10,7 @@ from middlewares.auth import AuthMiddleware
 
 from handlers import common, user, payment
 from handlers import vip
-from handlers.admin import panel, moderation, keys, users, products, vip_admin
+from handlers.admin import panel, moderation, keys, users, products, vip_admin, broadcast
 
 async def main():
     logging.basicConfig(level=logging.INFO)
@@ -42,6 +42,7 @@ async def main():
     dp.include_router(users.router)
     dp.include_router(products.router)
     dp.include_router(vip_admin.router)
+    dp.include_router(broadcast.router)
     
     logging.info("Starting bot...")
     await bot.delete_webhook(drop_pending_updates=True)
