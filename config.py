@@ -13,6 +13,13 @@ class Settings(BaseSettings):
     kaspi_receiver: str = ""                # KASPI_RECEIVER=Аты Жөні
     database_url: str = "sqlite+aiosqlite:///database.db"
 
+    # Webhook parameters for Render
+    use_webhook: bool = False               # USE_WEBHOOK=True
+    webhook_url: str = ""                   # WEBHOOK_URL=https://your-bot-app.onrender.com
+    webhook_path: str = "/webhook"          # WEBHOOK_PATH=/webhook
+    webapp_host: str = "0.0.0.0"            # WEBAPP_HOST=0.0.0.0
+    webapp_port: int = int(os.environ.get("PORT", 8000)) if "os" in globals() else 8000
+
     # Optional links
     official_website: str = "https://example.com"
     download_link: str = "https://example.com/download"
