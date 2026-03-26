@@ -19,6 +19,7 @@ class AuthMiddleware(BaseMiddleware):
         if user:
             async with async_session() as session:
                 db_user = await get_or_create_user(session, user.id, user.username)
+                await session.refresh(db_user)
 
                 is_admin = user.id in config.admin_ids
                 if not is_admin:
