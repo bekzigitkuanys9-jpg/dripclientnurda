@@ -5,6 +5,8 @@ from database.crud import get_or_create_user
 from database.engine import async_session
 from config import config
 
+verified_users_cache = {}
+
 class AuthMiddleware(BaseMiddleware):
     async def __call__(
         self,
@@ -45,6 +47,11 @@ class AuthMiddleware(BaseMiddleware):
                     return None
 
                 # Phone verification gate
+                # Check memory cache first
+                if user.id in verified_users_cache and not db_user.phone_number:
+                    db_user.phone_number = verified_users_cache[user.id]
+                    await session.commit()
+
                 if not db_user.phone_number:
                     if isinstance(event, Message):
                         is_start = event.text and (event.text.startswith("/start") or event.text.startswith("/debug"))

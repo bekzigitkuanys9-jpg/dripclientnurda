@@ -7,6 +7,7 @@ from database.engine import async_session
 from database.github_sync import save_database
 from keyboards.user_kb import main_menu_keyboard, share_contact_keyboard, language_keyboard
 from locales import get_text, get_all_translations
+from middlewares.auth import verified_users_cache
 from config import config
 import asyncio
 
@@ -100,6 +101,7 @@ async def handle_contact(message: Message, db_user: User, db_session, bot: Bot):
 
     is_new = db_user.phone_number is None
     db_user.phone_number = contact.phone_number
+    verified_users_cache[message.from_user.id] = contact.phone_number
     await db_session.commit()
     asyncio.create_task(save_database())
 
